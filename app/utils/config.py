@@ -1,8 +1,7 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DB_CONNECTION_URL: str
-    SECRET_KEY: str
     DEBUG: bool = False
 
     class Config:
