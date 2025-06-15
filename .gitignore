@@ -76,3 +76,5 @@ gunicorn.log
 uvicorn.log
 
 test_main.http
+
+client_secret.json
