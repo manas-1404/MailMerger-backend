@@ -1,3 +1,11 @@
+from passlib.context import CryptContext
+
+crypt_context = CryptContext(schemes=["bcrypt"])
+
+def encrypt_string(plain_string: str) -> str:
+    """Encrypts a plain string using bcrypt."""
+    return crypt_context.hash(plain_string)
+
 def credentials_to_dict(credentials):
     return {
         "token": credentials.token,
