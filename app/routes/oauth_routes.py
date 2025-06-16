@@ -122,4 +122,4 @@ def oauth2callback(request: Request):
     finally:
         db_session.close()
 
-    return RedirectResponse(url="http://localhost:3000", status_code=200)
+    return RedirectResponse(url="http://localhost:5173/dashboard", status_code=200)
