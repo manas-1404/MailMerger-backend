@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     DB_CONNECTION_URL: str
     OAUTHLIB_INSECURE_TRANSPORT: int
     DEBUG: bool = False
+    JWT_AUTH_ALGORITHM: str
+    JWT_SIGNATURE_SECRET_KEY: str
 
     class Config:
         env_file = ".env"
