@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     JWT_AUTH_ALGORITHM: str
     JWT_SIGNATURE_SECRET_KEY: str
+    JWT_TOKEN_EXPIRATION_MINUTES: int
+    JWT_REFRESH_TOKEN_EXPIRATION_DAYS: int
 
     class Config:
         env_file = ".env"
