@@ -3,14 +3,15 @@ import google_auth_oauthlib.flow
 import googleapiclient.discovery
 
 from fastapi.responses import RedirectResponse
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from google.auth.transport.requests import AuthorizedSession
+from sqlalchemy.orm import Session
 
 from app.routes.constant_routes import GOOGLE_CLIENT_SECRETS_FILE, SCOPES, REDIRECT_URI
 
+from app.auth.dependency_auth import create_jwt_token, create_jwt_refresh_token
 from app.utils.utils import credentials_to_dict
-
-from app.db.dbConnection import SessionLocal, engine
+from app.db.dbConnection import SessionLocal, get_db_session
 from app.models.user_models import User
 from app.models.user_token_models import UserToken
 
@@ -60,7 +61,7 @@ async def gmail_authorize(request: Request):
 
 
 @oauth_router.get('/oauth2callback', name='oauth2callback')
-def oauth2callback(request: Request):
+def oauth2callback(request: Request, db_connection: Session = Depends(get_db_session)):
     # Specify the state when creating the flow in the callback so that it can
     # verified in the authorization server response.
     returned_state = request.query_params.get('state')
@@ -91,35 +92,47 @@ def oauth2callback(request: Request):
     credentials_dict = credentials_to_dict(credentials)
     print(credentials_dict)
 
-    try:
-        db_session = SessionLocal()
 
-        authed_session = AuthorizedSession(credentials)
-        userinfo = authed_session.get("https://www.googleapis.com/oauth2/v2/userinfo").json()
+    authed_session = AuthorizedSession(credentials)
+    userinfo = authed_session.get("https://www.googleapis.com/oauth2/v2/userinfo").json()
 
-        new_user = User(name=userinfo['name'], email=userinfo['email'], password="hehehhhee", resume=None, cover_letter=None)
 
-        db_session.add(new_user)
+    new_user = User(name=userinfo['name'], email=userinfo['email'], password="oauth_google", resume=None, cover_letter=None)
 
-        db_session.flush()
+    db_connection.add(new_user)
 
-        new_user_token = UserToken(access_token=credentials_dict['token'],
+    db_connection.flush()
+
+    jwt_refresh_token = create_jwt_refresh_token(data=new_user.uid)
+
+    db_connection.query(User).filter(User.uid == new_user.uid).update({User.refresh_token: jwt_refresh_token})
+
+
+    #store the user tokens in the db
+    new_user_token = UserToken(access_token=credentials_dict['token'],
                                    refresh_token=credentials_dict['refresh_token'],
                                    token_type='Google',
                                    expires_at=credentials_dict['expiry'],
                                    uid=new_user.uid)
 
-        db_session.add(new_user_token)
+    db_connection.add(new_user_token)
 
-        db_session.commit()
+    db_connection.commit()
 
 
+    redirected_response = RedirectResponse(
+        url="http://localhost:5173/dashboard",
+        status_code=302
+    )
 
-    except Exception as e:
-        db_session.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    redirected_response.set_cookie(
+        key="refresh_token",
+        value=jwt_refresh_token,
+        httponly=True,
+        secure=False,  # Set to True in production
+        samesite="Strict",
+        max_age=60 * 60 * 24 * 7  # 7 days
+    )
 
-    finally:
-        db_session.close()
 
-    return RedirectResponse(url="http://localhost:5173/dashboard", status_code=200)
+    return redirected_response
