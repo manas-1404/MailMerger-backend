@@ -7,3 +7,7 @@ class TemplateSchema(BaseModel):
     uid: Optional[int] = None
     t_body: str
     t_key: str
+
+    model_config = {
+        "from_attributes": True
+    }
