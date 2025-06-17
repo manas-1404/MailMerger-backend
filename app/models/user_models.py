@@ -11,6 +11,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True, index=True)
     password = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=True)
     resume = Column(String, nullable=True)
     cover_letter = Column(String, nullable=True)
 

@@ -8,8 +8,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db_session():
     """
-    Dependency to get a database session.
-    This function can be used in FastAPI routes to get a session for database operations.
+    Dependency to get a database session. The function can be used in FastAPI routes to get a session for database operations.
     """
     db = SessionLocal()
     try:

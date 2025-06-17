@@ -8,6 +8,7 @@ class UserSchema(BaseModel):
     name: str
     email: str
     password: str
+    refresh_token: Optional[str] = None
     resume: Optional[str] = None
     cover_letter: Optional[str] = None
 
