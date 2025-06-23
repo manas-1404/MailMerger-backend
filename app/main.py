@@ -2,18 +2,27 @@ from fastapi import FastAPI, APIRouter
 from sqlalchemy import text
 import logging
 
+from app.routes.login_routes import login_router
 from app.routes.oauth_routes import oauth_router
+from app.routes.auth_routes import auth_router
 from app.pydantic_schemas.response_pydantic import ResponseSchema
 
 from app.db.dbConnection import engine, SessionLocal
 from app.models.base_model import Base
 import app.models
+from app.routes.template_routes import template_router
+from app.routes.user_routes import user_router
+
 app = FastAPI()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app.include_router(oauth_router)
+app.include_router(auth_router)
+app.include_router(login_router)
+app.include_router(user_router)
+app.include_router(template_router)
 
 # @app.get("/")
 # async def root():

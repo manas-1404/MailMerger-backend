@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     JWT_SIGNATURE_SECRET_KEY: str
     JWT_TOKEN_EXPIRATION_MINUTES: int
     JWT_REFRESH_TOKEN_EXPIRATION_DAYS: int
+    REDIS_HOST: str
+    REDIS_SERVER_PORT: int
 
     class Config:
         env_file = ".env"

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependency_auth import authenticate_request
 from app.db.dbConnection import get_db_session
+from app.db.redisConnection import get_redis_connection
 from app.models.template_models import Template
 from app.pydantic_schemas.response_pydantic import ResponseSchema
 from app.pydantic_schemas.template_pydantic import TemplateSchema
