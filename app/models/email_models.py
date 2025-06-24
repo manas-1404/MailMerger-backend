@@ -10,6 +10,7 @@ class Email(Base):
 
     eid = Column(Integer, primary_key=True, autoincrement=True, unique=True, index=True)
     uid = Column(Integer, ForeignKey('users.uid'), nullable=False)
+    google_message_id = Column(String, nullable=True, unique=True)
     subject = Column(String, nullable=False)
     body = Column(String, nullable=False)
     is_sent = Column(Boolean, default=False)
