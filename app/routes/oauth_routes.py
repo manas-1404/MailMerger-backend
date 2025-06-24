@@ -1,3 +1,7 @@
+import secrets
+from typing import Literal
+from urllib.parse import urlencode, parse_qs
+
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
@@ -25,11 +29,15 @@ oauth_router = APIRouter(
 # this method will return the google consent url to the frontend, which will redirect the user to the google consent page
 # it will also include state parameter as cookie to verify the response from google later
 @oauth_router.get("/gmail-authorize")
-async def gmail_authorize(request: Request):
+async def gmail_authorize(request: Request, purpose: Literal["signup", "authorize"]):
     """
     Endpoint to initiate Gmail OAuth authorization.
     This will redirect the user to the Google authorization page.
     """
+
+    if purpose not in ("signup", "authorize"):
+        raise HTTPException(400, "Invalid purpose in state.")
+
     # Create flow instance to manage the OAuth 2.0 Authorization Grant Flow steps.
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI)
@@ -40,10 +48,13 @@ async def gmail_authorize(request: Request):
     # error.
     flow.redirect_uri = str(request.base_url) + "api/oauth/oauth2callback"
 
+    custom_state = urlencode({"purpose": purpose})
+
     authorization_url, state = flow.authorization_url(
         # Enable offline access so that you can refresh an access token without
         # re-prompting the user for permission. Recommended for web server apps.
         access_type='offline',
+        state=custom_state,
         # Enable incremental authorization. Recommended as a best practice.
         include_granted_scopes='true'
     )
@@ -71,6 +82,12 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
     if returned_state != stored_state:
         raise HTTPException(status_code=400, detail="State mismatch. Possible CSRF attack.")
 
+    parsed_state = parse_qs(returned_state)
+
+    if "purpose" not in parsed_state:
+        raise HTTPException(status_code=400, detail="Missing 'purpose' in state.")
+
+    purpose = parsed_state.get("purpose")[0]
 
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRETS_FILE, scopes=SCOPES, state=returned_state)
@@ -96,43 +113,76 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
     authed_session = AuthorizedSession(credentials)
     userinfo = authed_session.get("https://www.googleapis.com/oauth2/v2/userinfo").json()
 
+    existing_user = db_connection.query(User).filter(User.email == userinfo['email']).first()
 
-    new_user = User(name=userinfo['name'], email=userinfo['email'], password="oauth_google", resume=None, cover_letter=None)
+    if purpose == "signup":
 
-    db_connection.add(new_user)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="User already exists. Please log in.")
 
-    db_connection.flush()
+        new_user = User(name=userinfo['name'], email=userinfo['email'], password="oauth_google", resume=None, cover_letter=None)
 
-    jwt_refresh_token = create_jwt_refresh_token(data=new_user.uid)
+        db_connection.add(new_user)
 
-    db_connection.query(User).filter(User.uid == new_user.uid).update({User.refresh_token: jwt_refresh_token})
+        db_connection.flush()
 
+        jwt_refresh_token = create_jwt_refresh_token(data=new_user.uid)
 
-    #store the user tokens in the db
-    new_user_token = UserToken(access_token=credentials_dict['token'],
-                                   refresh_token=credentials_dict['refresh_token'],
-                                   token_type='Google',
-                                   expires_at=credentials_dict['expiry'],
-                                   uid=new_user.uid)
-
-    db_connection.add(new_user_token)
-
-    db_connection.commit()
+        db_connection.query(User).filter(User.uid == new_user.uid).update({User.refresh_token: jwt_refresh_token})
 
 
-    redirected_response = RedirectResponse(
-        url="http://localhost:5173/dashboard",
-        status_code=302
-    )
+        #store the user tokens in the db
+        new_user_token = UserToken(access_token=credentials_dict['token'],
+                                       refresh_token=credentials_dict['refresh_token'],
+                                       token_type='Google',
+                                       expires_at=credentials_dict['expiry'],
+                                       uid=new_user.uid)
 
-    redirected_response.set_cookie(
-        key="refresh_token",
-        value=jwt_refresh_token,
-        httponly=True,
-        secure=False,  # Set to True in production
-        samesite="Strict",
-        max_age=60 * 60 * 24 * 7  # 7 days
-    )
+        db_connection.add(new_user_token)
+
+        db_connection.commit()
 
 
-    return redirected_response
+        redirected_response = RedirectResponse(
+            url="http://localhost:5173/dashboard",
+            status_code=302
+        )
+
+        redirected_response.set_cookie(
+            key="refresh_token",
+            value=jwt_refresh_token,
+            httponly=True,
+            secure=False,  # Set to True in production
+            samesite="Strict",
+            max_age=60 * 60 * 24 * 7  # 7 days
+        )
+
+
+        return redirected_response
+
+    elif purpose == "authorize":
+        if not existing_user:
+            raise HTTPException(status_code=404, detail="User not found. Please sign up first.")
+
+        token_record = db_connection.query(UserToken).filter(UserToken.uid == existing_user.uid).first()
+
+        if token_record:
+            token_record.access_token = credentials_dict["token"]
+            token_record.refresh_token = credentials_dict["refresh_token"]
+            token_record.expires_at = credentials_dict["expiry"]
+        else:
+
+            new_user_token = UserToken(access_token=credentials_dict['token'],
+                                       refresh_token=credentials_dict['refresh_token'],
+                                       token_type='Google',
+                                       expires_at=credentials_dict['expiry'],
+                                       uid=existing_user.uid)
+
+            db_connection.add(new_user_token)
+
+        db_connection.commit()
+
+        return RedirectResponse(url="http://localhost:5173/dashboard")
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid purpose in state.")

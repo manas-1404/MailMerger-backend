@@ -94,6 +94,23 @@ def send_gmail_now(email_object: EmailSchema, jwt_payload: dict[str] = Depends(a
     user = db_connection.query(User).filter(User.uid == user_id).first()
     user_token = db_connection.query(UserToken).filter(UserToken.uid == user_id).first()
 
+    if not user:
+        return ResponseSchema(
+            success=False,
+            status_code=404,
+            message="User not found.",
+            data={}
+        )
+
+    # case where the user login through email and password, but never gives access to their gmail permissions
+    if not user_token:
+        return ResponseSchema(
+            success=False,
+            status_code=401,
+            message="Gmail not authorized.",
+            data={"redirect_url": "http://localhost:8000/api/oauth/gmail-authorize"}
+        )
+
     gmail_access_token = user_token.access_token
 
     if user_token.expires_at < datetime.utcnow():
