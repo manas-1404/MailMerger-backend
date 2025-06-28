@@ -18,5 +18,5 @@ def send_gmail_now_wrapper(email_object: EmailSchema, jwt_payload: dict[str] = D
     Endpoint to send an email using Gmail API.
     """
 
-    return send_gmail_service(email_object=email_object, jwt_payload=jwt_payload, db_connection=db_connection)
+    return send_gmail_service(email_object=email_object, user_id=jwt_payload.get("sub"), db_connection=db_connection)
 

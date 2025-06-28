@@ -78,11 +78,10 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
 
 
 
-def send_gmail_service(email_object: EmailSchema, jwt_payload: dict[str], db_connection: Session):
+def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: Session):
     """
     Endpoint to send an email using Gmail API.
     """
-    user_id = jwt_payload.get("sub")
 
     user = db_connection.query(User).filter(User.uid == user_id).first()
     user_token = db_connection.query(UserToken).filter(UserToken.uid == user_id).first()

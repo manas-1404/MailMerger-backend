@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRATION_DAYS: int
     REDIS_HOST: str
     REDIS_SERVER_PORT: int
+    REDIS_SERVER_DB: int
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_PROJECT_ID: str
