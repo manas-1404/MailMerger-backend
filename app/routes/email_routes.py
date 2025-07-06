@@ -12,7 +12,7 @@ email_router = APIRouter(
 )
 
 
-@email_router.post("/send-gmail-now")
+@email_router.post("/send-email-now")
 def send_gmail_now_wrapper(email_object: EmailSchema, jwt_payload: dict[str] = Depends(authenticate_request), db_connection: Session = Depends(get_db_session)):
     """
     Endpoint to send an email using Gmail API.

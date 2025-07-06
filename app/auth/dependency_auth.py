@@ -23,7 +23,7 @@ def create_jwt_token(data: str) -> str:
     }
 
     return jwt.encode(
-        payload=jwt_payload,
+        claims=jwt_payload,
         key=settings.JWT_SIGNATURE_SECRET_KEY,
         algorithm=settings.JWT_AUTH_ALGORITHM
     )
@@ -42,7 +42,7 @@ def create_jwt_refresh_token(data: str) -> str:
     }
 
     return jwt.encode(
-        payload=jwt_payload,
+        claims=jwt_payload,
         key=settings.JWT_SIGNATURE_SECRET_KEY,
         algorithm=settings.JWT_AUTH_ALGORITHM
     )

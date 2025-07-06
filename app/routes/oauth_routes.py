@@ -48,6 +48,8 @@ async def gmail_authorize(request: Request, purpose: Literal["signup", "authoriz
     # error.
     flow.redirect_uri = str(request.base_url) + "api/oauth/oauth2callback"
 
+    print("Redirect URI:", flow.redirect_uri)
+
     custom_state = urlencode({"purpose": purpose})
 
     authorization_url, state = flow.authorization_url(
@@ -65,7 +67,7 @@ async def gmail_authorize(request: Request, purpose: Literal["signup", "authoriz
         key="oauth_state",
         value=state,
         httponly=True,
-        secure=False,  # Set to True in production
+        secure=False,  #TODO: Set to True in production
     )
 
     return response
@@ -73,7 +75,7 @@ async def gmail_authorize(request: Request, purpose: Literal["signup", "authoriz
 
 @oauth_router.get('/oauth2callback', name='oauth2callback')
 def oauth2callback(request: Request, db_connection: Session = Depends(get_db_session)):
-    # Specify the state when creating the flow in the callback so that it can
+    #mention the state when creating the flow in the callback so that it can
     # verified in the authorization server response.
     returned_state = request.query_params.get('state')
     stored_state = request.cookies.get('oauth_state')
@@ -126,9 +128,9 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
 
         db_connection.flush()
 
-        jwt_refresh_token = create_jwt_refresh_token(data=new_user.uid)
+        fresh_jwt_refresh_token = create_jwt_refresh_token(data=new_user.uid)
 
-        db_connection.query(User).filter(User.uid == new_user.uid).update({User.refresh_token: jwt_refresh_token})
+        db_connection.query(User).filter(User.uid == new_user.uid).update({User.jwt_refresh_token: fresh_jwt_refresh_token})
 
 
         #store the user tokens in the db
