@@ -6,7 +6,7 @@ import google.oauth2.credentials
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi import APIRouter, Request, HTTPException, Depends
 from google.auth.transport.requests import AuthorizedSession
 from sqlalchemy.orm import Session
@@ -48,8 +48,6 @@ async def gmail_authorize(request: Request, purpose: Literal["signup", "authoriz
     # error.
     flow.redirect_uri = str(request.base_url) + "api/oauth/oauth2callback"
 
-    print("Redirect URI:", flow.redirect_uri)
-
     custom_state = urlencode({"purpose": purpose})
 
     authorization_url, state = flow.authorization_url(
@@ -58,7 +56,8 @@ async def gmail_authorize(request: Request, purpose: Literal["signup", "authoriz
         access_type='offline',
         state=custom_state,
         # Enable incremental authorization. Recommended as a best practice.
-        include_granted_scopes='true'
+        include_granted_scopes='true',
+        prompt='consent' if purpose == "signup" else 'select_account',
     )
 
     # Store the state so the callback can verify the auth server response.
@@ -79,7 +78,12 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
     # verified in the authorization server response.
     returned_state = request.query_params.get('state')
     stored_state = request.cookies.get('oauth_state')
+    login_error = request.query_params.get("error")      #this is in case where user tries to login and prompt=none, but it fails because user is not authorised user
 
+    if login_error in ("consent_required", "login_required", "interaction_required"):
+        signup_url = str(request.base_url) + "api/oauth/gmail-authorize?purpose=signup"
+        print(signup_url)
+        return RedirectResponse(url=signup_url, status_code=302)
 
     if returned_state != stored_state:
         raise HTTPException(status_code=400, detail="State mismatch. Possible CSRF attack.")
@@ -105,8 +109,6 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
     # ACTION ITEM: In a production app, you likely want to save these
     #              credentials in a persistent database instead.
     credentials = flow.credentials
-
-    print(dir(credentials))
 
     credentials_dict = credentials_to_dict(credentials)
     print(credentials_dict)
@@ -145,20 +147,33 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
         db_connection.commit()
 
 
-        redirected_response = RedirectResponse(
-            url="http://localhost:5173/dashboard",
-            status_code=302
-        )
+        # redirected_response = RedirectResponse(
+        #     url="http://localhost:5173/dashboard",
+        #     status_code=302
+        # )
+
+        redirected_response = HTMLResponse("""
+                                <html>
+                                  <head>
+                                    <script>
+                                      window.location.href = "http://localhost:5173/dashboard";
+                                    </script>
+                                  </head>
+                                  <body>
+                                    <p>Redirecting to dashboard...</p>
+                                  </body>
+                                </html>
+                                """, status_code=200)
 
         redirected_response.set_cookie(
             key="refresh_token",
-            value=jwt_refresh_token,
+            value=fresh_jwt_refresh_token,
             httponly=True,
             secure=False,  # Set to True in production
-            samesite="Strict",
+            samesite="lax",
+            path="/",
             max_age=60 * 60 * 24 * 7  # 7 days
         )
-
 
         return redirected_response
 
@@ -170,10 +185,12 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
 
         if token_record:
             token_record.access_token = credentials_dict["token"]
-            token_record.refresh_token = credentials_dict["refresh_token"]
             token_record.expires_at = credentials_dict["expiry"]
-        else:
 
+            if "refresh_token" in credentials_dict and credentials_dict["refresh_token"] is not None:
+                token_record.refresh_token = credentials_dict["refresh_token"]
+
+        else:
             new_user_token = UserToken(access_token=credentials_dict['token'],
                                        refresh_token=credentials_dict['refresh_token'],
                                        token_type='Google',

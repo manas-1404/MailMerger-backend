@@ -1,9 +1,12 @@
 import os
+from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DB_CONNECTION_URL: str
+    ALLOWED_ORIGINS: list[str] = []
     OAUTHLIB_INSECURE_TRANSPORT: int
     DEBUG: bool = False
     JWT_AUTH_ALGORITHM: str
