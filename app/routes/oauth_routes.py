@@ -152,28 +152,21 @@ def oauth2callback(request: Request, db_connection: Session = Depends(get_db_ses
         #     status_code=302
         # )
 
-        redirected_response = HTMLResponse("""
-                                <html>
-                                  <head>
-                                    <script>
-                                      window.location.href = "http://localhost:5173/dashboard";
-                                    </script>
-                                  </head>
-                                  <body>
-                                    <p>Redirecting to dashboard...</p>
-                                  </body>
-                                </html>
-                                """, status_code=200)
-
-        redirected_response.set_cookie(
-            key="refresh_token",
-            value=fresh_jwt_refresh_token,
-            httponly=True,
-            secure=False,  # Set to True in production
-            samesite="lax",
-            path="/",
-            max_age=60 * 60 * 24 * 7  # 7 days
-        )
+        redirected_response = HTMLResponse(f"""
+                                    <html>
+                                      <head>
+                                        <script>
+                                          localStorage.setItem("refresh_token", "{fresh_jwt_refresh_token}");
+                                          setTimeout(() => {{
+                                            window.location.href = "http://localhost:5173/dashboard";
+                                          }}, 300);
+                                        </script>
+                                      </head>
+                                      <body>
+                                        <p>Redirecting to dashboard...</p>
+                                      </body>
+                                    </html>
+                                    """, status_code=200)
 
         return redirected_response
 

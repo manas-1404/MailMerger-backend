@@ -53,7 +53,7 @@ def authenticate_request(http_credentials: HTTPAuthorizationCredentials = Depend
     jwt_token = http_credentials.credentials
 
     try:
-        jwt_payload = jwt.decode(token=jwt_token, algorithms=settings.JWT_AUTH_ALGORITHM, key=settings.JWT_SIGNATURE_SECRET_KEY, options={"verify_signature": True, "verify_exp": True})
+        jwt_payload = jwt.decode(token=jwt_token, algorithms=settings.JWT_AUTH_ALGORITHM, key=settings.JWT_SIGNATURE_SECRET_KEY, options={"verify_signature": True, "verify_exp": True, "verify_sub": False})
 
     except ExpiredSignatureError:
         raise HTTPException(

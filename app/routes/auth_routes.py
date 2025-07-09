@@ -18,12 +18,24 @@ def refresh_jwt_token(request: Request):
     Endpoint to refresh the JWT token.
     This endpoint should be called when the JWT token is about to expire.
     """
-    refresh_token = request.cookies.get("refresh_token")
+    # refresh_token = request.cookies.get("refresh_token")
+
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header."
+        )
+
+    refresh_token = auth_header.split("Bearer ")[1]
+
+    print("Received refresh token:", refresh_token)
 
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token not found in cookies."
+            detail="Refresh token not provided in Authorization header."
         )
 
     try:
@@ -31,6 +43,7 @@ def refresh_jwt_token(request: Request):
             token=refresh_token,
             key=settings.JWT_SIGNATURE_SECRET_KEY,
             algorithms=[settings.JWT_AUTH_ALGORITHM],
+            options={"verify_sub": False}
         )
 
         user_id = decoded_refresh_token.get("sub")
@@ -40,6 +53,8 @@ def refresh_jwt_token(request: Request):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token payload."
             )
+
+        print("Decoded user ID from refresh token:", user_id, "\nType:", type(user_id))
 
         new_jwt_token = create_jwt_token(data=user_id)
 
@@ -56,7 +71,8 @@ def refresh_jwt_token(request: Request):
             detail="Refresh token has expired. Please log in again."
         )
 
-    except JWTError:
+    except JWTError as e:
+        print("JWTError:", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token. Please log in again."
