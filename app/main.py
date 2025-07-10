@@ -12,6 +12,7 @@ from app.pydantic_schemas.response_pydantic import ResponseSchema
 from app.db.dbConnection import engine, SessionLocal
 from app.models.base_model import Base
 import app.models
+from app.routes.queue_routes import queue_router
 from app.routes.template_routes import template_router
 from app.routes.user_routes import user_router
 from app.utils.config import settings
@@ -35,6 +36,7 @@ app.include_router(login_router)
 app.include_router(user_router)
 app.include_router(template_router)
 app.include_router(email_router)
+app.include_router(queue_router)
 
 @app.on_event("startup")
 async def db_create_tables():

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_PROJECT_ID: str
 
+    REDIS_CLOUD_HOST: str
+    REDIS_CLOUD_PORT: int
+    REDIS_CLOUD_USERNAME: str
+    REDIS_CLOUD_PASSWORD: str
+
     class Config:
         env_file = ".env"
 

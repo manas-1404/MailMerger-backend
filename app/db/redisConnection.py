@@ -7,11 +7,19 @@ def get_redis_connection():
     This function can be used in FastAPI routes to get a Redis connection for caching.
     """
     redis_client = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_SERVER_PORT,
-        db=0,
-        decode_responses=True
+        host=settings.REDIS_CLOUD_HOST,
+        port=settings.REDIS_CLOUD_PORT,
+        decode_responses=True,
+        username=settings.REDIS_CLOUD_USERNAME,
+        password=settings.REDIS_CLOUD_PASSWORD,
     )
+
+    # redis_client = redis.Redis(
+    #     host=settings.REDIS_HOST,
+    #     port=settings.REDIS_SERVER_PORT,
+    #     db=0,
+    #     decode_responses=True
+    # )
 
     try:
         yield redis_client
