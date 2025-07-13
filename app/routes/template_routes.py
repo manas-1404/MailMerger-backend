@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Request
+from typing import List
+from fastapi import APIRouter, Depends, Request, Body
 from sqlalchemy.orm import Session
 
 from app.auth.dependency_auth import authenticate_request
@@ -54,4 +55,68 @@ def add_template(template_data: TemplateSchema, jwt_payload: dict = Depends(auth
         success=True,
         message="Template added successfully.",
         data={"template_id": new_template.template_id}
+    )
+
+@template_router.patch("/update-template")
+def update_template(template_data: TemplateSchema, jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session)):
+    """
+    Endpoint to update a template for the authenticated user.
+    """
+    user_id = jwt_payload.get("sub")
+
+    update_template = db_connection.query(Template).filter(Template.template_id == template_data.template_id,
+                                                           Template.uid == user_id).first()
+
+    if not update_template:
+        return ResponseSchema(
+            success=False,
+            status_code=404,
+            message=f"Template with ID {template_data.template_id} not found.",
+            data={}
+        )
+
+    update_template.t_body = template_data.t_body
+    update_template.t_key = template_data.t_key
+
+    db_connection.commit()
+
+    return ResponseSchema(
+        status_code=200,
+        success=True,
+        message="Template updated successfully.",
+        data={"template_id": update_template.template_id}
+    )
+
+@template_router.delete("/delete-template")
+def delete_template(template_ids: List[int] = Body(...), jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session)):
+    """
+    Endpoint to delete a template for the authenticated user.
+    """
+    user_id = jwt_payload.get("sub")
+
+    for template_id in template_ids:
+
+        template = db_connection.query(Template).filter(Template.template_id == template_id, Template.uid == user_id).first()
+
+        if not template:
+            return ResponseSchema(
+                success=False,
+                status_code=404,
+                message=f"Template with ID {template_id} not found.",
+                data={
+                    "missing_template": template_id
+                }
+            )
+
+        db_connection.delete(template)
+
+    db_connection.commit()
+
+    return ResponseSchema(
+        status_code=200,
+        success=True,
+        message="Template deleted successfully.",
+        data={
+            "template_ids": template_ids
+        }
     )
