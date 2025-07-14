@@ -2,8 +2,9 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from email.policy import default
+from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 import redis
 
@@ -13,6 +14,7 @@ from app.auth.dependency_auth import authenticate_request
 from app.db.dbConnection import get_db_session
 from app.db.redisConnection import get_redis_connection
 from app.pydantic_schemas.response_pydantic import ResponseSchema
+from app.tasks.celery_tasks import send_emails_from_user_queue
 from app.utils.utils import generate_eid
 
 queue_router = APIRouter(
@@ -120,4 +122,33 @@ def add_to_queue(email: EmailSchema, jwt_payload: dict = Depends(authenticate_re
         status_code=200,
         message="Email added to the queue successfully.",
         data={"queue_length": redis_connection.llen(redis_email_queue_key)}
+    )
+
+@queue_router.post("/send-queued-emails")
+def send_queued_emails(email_ids: List[int] = Body(...),
+                       jwt_payload: dict = Depends(authenticate_request),
+                       db_connection: Session = Depends(get_db_session),
+                       redis_connection: redis.Redis = Depends(get_redis_connection)):
+    """
+    Endpoint wrapper to send queued emails. We will call celery task to process the emails in the background.
+    """
+    user_id = jwt_payload.get("sub")
+
+    user = db_connection.query(User).filter(User.uid == user_id).first()
+
+    if not user:
+        return ResponseSchema(
+            success=False,
+            status_code=404,
+            message="User not found.",
+            data={}
+        )
+
+    send_emails_from_user_queue.delay(user_id, email_ids)
+
+    return ResponseSchema(
+        success=True,
+        status_code=200,
+        message=f"{len(email_ids)} emails added to background worker successfully.",
+        data={"sent_emails": email_ids}
     )

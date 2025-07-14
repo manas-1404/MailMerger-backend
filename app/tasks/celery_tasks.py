@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import List
 
 from sqlalchemy.orm import joinedload
 
@@ -12,7 +13,7 @@ from app.routes.service_routes import gmail_send_message
 
 
 @celery_app.task(name="send_emails_from_user_queue")
-def send_emails_from_user_queue(user_id: str):
+def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
     """
     Celery task to send emails from the user's queue.
     This function will be called by the Celery worker.
@@ -25,17 +26,28 @@ def send_emails_from_user_queue(user_id: str):
     redis_queue_key = f"email_queue:{user_id}"
     redis_failed_queue_key = f"failed_email_queue:{user_id}"
 
+    print(f"Processing emails for user_id: {user_id} with email_ids: {email_ids}")
+
     try:
 
         user = db_connection.query(User).options(joinedload(User.user_tokens)).filter(User.uid == user_id).first()
 
-        while True:
+        email_queue = redis_connection.lrange(redis_queue_key, 0, -1)
 
-            email_json = redis_connection.lpop(redis_queue_key)
-            if email_json is None:
-                break
+        redis_connection.delete(redis_queue_key)
+
+        skipped_emails = []
+
+        for email_json in email_queue:
 
             email_data = json.loads(email_json)
+
+            print(f"Processing email data: \n{email_data}")
+
+            if email_data.get("eid") not in email_ids:
+                #If the email ID is not in the provided list, skip processing this email
+                skipped_emails.append(email_json)
+                continue
 
             email_object = EmailSchema.model_validate(email_data)
 
@@ -70,6 +82,10 @@ def send_emails_from_user_queue(user_id: str):
             else:
                 email_data["retry_count"] = email_data.get("retry_count", 0) + 1
                 redis_connection.rpush(redis_failed_queue_key, json.dumps(email_data))
+
+        if skipped_emails:
+            redis_connection.rpush(redis_queue_key, *skipped_emails)
+            redis_connection.expire(redis_queue_key, 90 * 60)
 
         db_connection.commit()
 
