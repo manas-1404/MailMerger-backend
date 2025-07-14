@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 
+from app.db.dbConnection import get_db_session
 from app.models import User, UserToken, Email
 from app.pydantic_schemas.email_pydantic import EmailSchema
 from app.pydantic_schemas.response_pydantic import ResponseSchema
@@ -30,7 +31,7 @@ def refresh_google_access_token(user_token: UserToken):
     return creds.token, creds.expiry
 
 
-def gmail_send_message(email_object: EmailSchema, google_access_token: str, from_email: str):
+def gmail_send_message(email_object: EmailSchema, google_access_token: str, from_email: str, user_token: UserToken, db_connection: Session):
     """Create and send an email message
     Print the returned message id
     Returns: Message object, including message id
@@ -39,6 +40,17 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
     """
+
+    if user_token.expires_at < datetime.utcnow():
+        gmail_access_token, gmail_access_token_expiry = refresh_google_access_token(user_token)
+
+        user_token.access_token = gmail_access_token
+        user_token.expires_at = gmail_access_token_expiry
+
+        db_connection.commit()
+
+        google_access_token = user_token.access_token
+
 
     user_credentials = Credentials(token=google_access_token)
 
@@ -116,7 +128,9 @@ def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: S
     sent_message = gmail_send_message(
         google_access_token=gmail_access_token,
         from_email=user.email,
-        email_object=email_object
+        email_object=email_object,
+        user_token=user_token,
+        db_connection=db_connection
     )
 
     if sent_message:

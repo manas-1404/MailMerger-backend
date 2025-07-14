@@ -66,8 +66,12 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
         email_list = []
 
         for email in email_queue:
-            email_dict = EmailSchema.model_validate(email).model_dump()
+            email_dict = EmailSchema.model_validate(email, from_attributes=True).model_dump()
             email_dict["from_email"] = user.email
+
+            if isinstance(email_dict.get("send_at"), datetime):
+                email_dict["send_at"] = email_dict["send_at"].isoformat()
+
             redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
             email_list.append(email_dict)
 

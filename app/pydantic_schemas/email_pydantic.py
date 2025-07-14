@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -11,4 +12,4 @@ class EmailSchema(BaseModel):
     to_email: str
     cc_email: Optional[str] = None
     bcc_email: Optional[str] = None
-    send_at: Optional[str] = None
+    send_at: Optional[datetime] = None

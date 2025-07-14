@@ -9,3 +9,5 @@ celery_app = Celery(
     # broker=f"redis://{settings.REDIS_HOST}:{settings.REDIS_SERVER_PORT}/{settings.REDIS_SERVER_DB}",
     # backend=f"redis://{settings.REDIS_HOST}:{settings.REDIS_SERVER_PORT}/{settings.REDIS_SERVER_DB}",
 )
+
+celery_app.autodiscover_tasks(['app.tasks'])

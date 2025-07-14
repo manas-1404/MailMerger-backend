@@ -51,7 +51,7 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
             email_object = EmailSchema.model_validate(email_data)
 
-            service_response = gmail_send_message(email_object=email_object, google_access_token=user.user_tokens[0].access_token, from_email=user.email)
+            service_response = gmail_send_message(email_object=email_object, google_access_token=user.user_tokens[0].access_token, from_email=user.email, user_token=user.user_tokens[0], db_connection=db_connection)
 
             if service_response:
                 if email_object.eid:
@@ -118,7 +118,7 @@ def retry_failed_emails(user_id: str):
 
             email_obj = EmailSchema.model_validate(email_data)
 
-            response = gmail_send_message(email_object=email_obj, google_access_token=user.user_tokens[0].access_token, from_email=user.email)
+            response = gmail_send_message(email_object=email_obj, google_access_token=user.user_tokens[0].access_token, from_email=user.email, user_token=user.user_tokens[0], db_connection=db)
 
             if response:
                 # Mark as sent in DB
