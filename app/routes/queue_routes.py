@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict
+from datetime import datetime
 from email.policy import default
 
 from fastapi import APIRouter, Depends
@@ -12,6 +13,7 @@ from app.auth.dependency_auth import authenticate_request
 from app.db.dbConnection import get_db_session
 from app.db.redisConnection import get_redis_connection
 from app.pydantic_schemas.response_pydantic import ResponseSchema
+from app.utils.utils import generate_eid
 
 queue_router = APIRouter(
     prefix="/api/queue",
@@ -38,12 +40,14 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
             data={}
         )
 
-    redis_hash_key = user.uid
-    redis_hash_value = redis_connection.hget("users", redis_hash_key)
+    redis_email_queue_key = f"email_queue:{user_id}"
+    email_queue = redis_connection.lrange(redis_email_queue_key, 0, -1)
 
-    if redis_hash_value:
-        email_queue = redis_connection.lrange(redis_hash_value, 0, -1)
+    if email_queue:
+
         emails = [json.loads(email) for email in email_queue]
+
+        redis_connection.expire(redis_email_queue_key, 90*60) #extend the expiry time of the email queue because it was recently used
 
         return ResponseSchema(
             success=True,
@@ -57,24 +61,21 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
         email_queue = db_connection.query(Email).filter((Email.uid == user_id) & (Email.is_sent == False)).all()
 
         #add the emails to redis for future requests
-        redis_hash_key = user.uid
-        redis_hash_value = f"email_queue:{user.uid}"
-
-        redis_connection.hset("users", redis_hash_key, redis_hash_value)
-
         email_list = []
 
         for email in email_queue:
             email_dict = EmailSchema.model_validate(email).model_dump()
             email_dict["from_email"] = user.email
-            redis_connection.rpush(redis_hash_value, json.dumps(email_dict))
+            redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
             email_list.append(email_dict)
+
+        redis_connection.expire(redis_email_queue_key, 90*60)
 
         return ResponseSchema(
             success=True,
             status_code=200,
             message="Email queue retrieved successfully from DB (not found in Redis).",
-            data={"queue_length": len(email_list), "all_emails": email_list}
+            data={"queue_length": len(email_list), "emails": email_list}
         )
 
 
@@ -97,19 +98,26 @@ def add_to_queue(email: EmailSchema, jwt_payload: dict = Depends(authenticate_re
             data={}
         )
 
-    redis_hash_key = user.uid
-    redis_hash_value = f"email_queue:{user.uid}"     #this hash value will act as a pointer to the email queue for each user
-
-    redis_connection.hset("users", redis_hash_key, redis_hash_value)
+    redis_email_queue_key = f"email_queue:{user.uid}"     #this hash value will act as a pointer to the email queue for each user
 
     email_dict = email.model_dump()
-    email_dict["from_email"] = user.email
+    email_dict["uid"] = user_id
+    email_dict["is_sent"] = False
+    email_dict["send_at"] = datetime.utcnow().isoformat()
 
-    redis_connection.rpush(redis_hash_value, json.dumps(email_dict))
+    new_email = Email(**email_dict)
+
+    db_connection.add(new_email)
+    db_connection.commit()
+
+    email_dict["eid"] = new_email.eid
+
+    redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
+    redis_connection.expire(redis_email_queue_key, 90*60)
 
     return ResponseSchema(
         success=True,
         status_code=200,
         message="Email added to the queue successfully.",
-        data={"queue_length": redis_connection.llen(redis_hash_value)}
+        data={"queue_length": redis_connection.llen(redis_email_queue_key)}
     )

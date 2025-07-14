@@ -1,4 +1,6 @@
 from passlib.context import CryptContext
+import time
+import uuid
 
 crypt_context = CryptContext(schemes=["bcrypt"])
 
@@ -20,3 +22,8 @@ def credentials_to_dict(credentials):
         "granted_scopes": credentials.scopes,
         "expiry": str(credentials.expiry)
     }
+
+def generate_eid(user_id: str) -> str:
+    timestamp = int(time.time() * 1000)
+    random_suffix = uuid.uuid4().hex[:8]
+    return f"{user_id}_{timestamp}_{random_suffix}"
