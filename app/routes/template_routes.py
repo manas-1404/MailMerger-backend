@@ -2,6 +2,7 @@ from typing import List
 
 import redis
 from fastapi import APIRouter, Depends, Request, Body
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.auth.dependency_auth import authenticate_request
@@ -139,28 +140,28 @@ def delete_template(template_ids: List[int] = Body(...), jwt_payload: dict = Dep
     """
     user_id = jwt_payload.get("sub")
 
+    if not template_ids:
+        return ResponseSchema(
+            success=False,
+            status_code=400,
+            message="No template IDs provided.",
+            data={}
+        )
+
     redis_pipeline = redis_connection.pipeline()
     redis_template_key: str = f"user:{user_id}:templates"
 
-    for template_id in template_ids:
+    templates_to_delete = delete(Template).where(
+        Template.template_id.in_(template_ids),
+        Template.uid == user_id
+    )
 
-        template = db_connection.query(Template).filter(Template.template_id == template_id, Template.uid == user_id).first()
-
-        if not template:
-            return ResponseSchema(
-                success=False,
-                status_code=404,
-                message=f"Template with ID {template_id} not found.",
-                data={
-                    "missing_template": template_id
-                }
-            )
-
-        redis_pipeline.hdel(redis_template_key, str(template_id))
-
-        db_connection.delete(template)
+    db_connection.execute(templates_to_delete)
 
     db_connection.commit()
+
+    #map the template ids and delete them from redis. map() converts the template_ids to strings. * basically unpacks all the template_ids
+    redis_pipeline.hdel(redis_template_key, *map(str, template_ids))
 
     redis_pipeline.expire(redis_template_key, 60 * 90)
     redis_pipeline.execute()
