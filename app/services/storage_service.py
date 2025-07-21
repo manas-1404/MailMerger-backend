@@ -2,6 +2,40 @@ import httpx
 import os
 from app.utils.config import settings
 
+def get_file_from_storage(object_url: str) -> str:
+    """
+    Download a file from a remote storage service.
+
+    :param object_url: URL of the file to be downloaded.
+    :return: Full path to the downloaded file if successful, False otherwise.
+    """
+
+    headers = {
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE}"
+    }
+
+    try:
+        response = httpx.get(url=object_url, headers=headers)
+
+        if response.status_code == 200:
+            filename = object_url.split("/")[-1]
+
+            os.makedirs("downloads", exist_ok=True)
+            file_path = os.path.join("downloads", filename)
+
+            with open(file_path, "wb") as file:
+                file.write(response.content)
+
+            return file_path
+        else:
+            print(f"Failed to download file: {response.status_code}")
+            return "download_failed"
+
+    except httpx.RequestError as e:
+        print(f"An error occurred while downloading the file: {e}")
+        return "download_failed"
+
+
 def upload_file_to_storage(file_path: str) -> str:
     """
     Upload a file to a remote storage service.
@@ -19,7 +53,7 @@ def upload_file_to_storage(file_path: str) -> str:
     object_url: str = f"{settings.SUPABASE_S3_STORAGE_ENDPOINT}/object/{bucketName}/{wildcard}"
 
     headers = {
-        "Authorization": f"Bearer {settings.SUPABASE_SECRET_ACCESS_KEY}",
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE}",
         "Content-Type": "application/pdf",
     }
 
