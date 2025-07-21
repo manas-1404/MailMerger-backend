@@ -6,6 +6,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DB_CONNECTION_URL: str
+    SUPABASE_ACCESS_KEY_ID: str
+    SUPABASE_SERVICE_ROLE: str
+    SUPABASE_S3_STORAGE_ENDPOINT: str
+    SUPABASE_S3_STORAGE_REGION: str
     ALLOWED_ORIGINS: list[str] = []
     OAUTHLIB_INSECURE_TRANSPORT: int
     DEBUG: bool = False
