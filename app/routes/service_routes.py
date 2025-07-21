@@ -1,3 +1,6 @@
+import os.path
+from email.contentmanager import maintype
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -31,7 +34,7 @@ def refresh_google_access_token(user_token: UserToken):
     return creds.token, creds.expiry
 
 
-def gmail_send_message(email_object: EmailSchema, google_access_token: str, from_email: str, user_token: UserToken, db_connection: Session):
+def gmail_send_message(email_object: EmailSchema, google_access_token: str, from_email: str, user_token: UserToken, db_connection: Session, file_attachment_location: str = None):
     """Create and send an email message
     Print the returned message id
     Returns: Message object, including message id
@@ -70,6 +73,22 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
         if email_object.bcc_email:
             message["Bcc"] = email_object.bcc_email
 
+        if os.path.exists(file_attachment_location):
+            with open(file_attachment_location, "rb") as attachment_file:
+                attachment_file_bytes = attachment_file.read()
+
+            username = os.path.basename(file_attachment_location).replace(".pdf", "_resume.pdf").split("_", 1)
+
+            filename_in_email = username[1]
+
+
+            message.add_attachment(
+                attachment_file_bytes,
+                maintype="application", #for sending pdf files its maintype is application
+                subtype="pdf",          #for sending pdf files only for now
+                filename=filename_in_email
+            )
+
         # encoded message
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
@@ -92,7 +111,7 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
 
 def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: Session):
     """
-    Endpoint to send an email using Gmail API.
+    This is a wrapper for the Gmail service. Here we will check if the user has authorized Gmail access and then call the gmail service method to send the email.
     """
 
     user = db_connection.query(User).filter(User.uid == user_id).first()
