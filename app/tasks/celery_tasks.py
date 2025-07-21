@@ -1,4 +1,5 @@
 import json
+import os.path
 from datetime import datetime
 from typing import List
 
@@ -11,6 +12,7 @@ from app.db.redisConnection import get_redis_connection
 from app.models import User, UserToken, Email
 from app.pydantic_schemas.email_pydantic import EmailSchema
 from app.routes.service_routes import gmail_send_message
+from app.services.storage_service import get_file_from_storage
 
 
 @celery_app.task(name="send_emails_from_user_queue")
@@ -41,6 +43,8 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
         redis_pipeline.delete(redis_queue_key)
 
+        resume_path_on_disk = None
+
         for email_json in email_queue:
 
             email_data = json.loads(email_json)
@@ -52,11 +56,32 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
             email_object = EmailSchema.model_validate(email_data)
 
+            if email_object.include_resume:
+
+                # checking if the user has a resume on file
+                if not user.resume:
+                    #if the user does not have a resume uploaded, we cannot proceed so skip this email
+                    redis_pipeline.rpush(redis_failed_queue_key, email_json)
+                    continue
+
+                resume_path_on_disk = get_file_from_storage(object_url=user.resume) if resume_path_on_disk is None or resume_path_on_disk=="download_failed" else resume_path_on_disk
+
+                if resume_path_on_disk == "download_failed":
+                    #if the resume download failed, we cannot proceed so skip this email
+                    redis_pipeline.rpush(redis_failed_queue_key, email_json)
+                    continue
+
             try:
-                service_response = gmail_send_message(email_object=email_object, google_access_token=user.user_tokens[0].access_token, from_email=user.email, user_token=user.user_tokens[0], db_connection=db_connection)
+                service_response = gmail_send_message(email_object=email_object,
+                                                      google_access_token=user.user_tokens[0].access_token,
+                                                      from_email=user.email,
+                                                      user_token=user.user_tokens[0],
+                                                      db_connection=db_connection,
+                                                      file_attachment_location=resume_path_on_disk if email_object.include_resume else None)
             except Exception as e:
                 print(f"Error sending email: {e}")
                 email_data["retry_count"] = email_data.get("retry_count", 0) + 1
+                email_data["error"] = str(e)
                 redis_pipeline.rpush(redis_failed_queue_key, json.dumps(email_data))
 
             if service_response:
@@ -64,6 +89,10 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
                     #update the status of the email in db
                     updated_send_at_records[email_object.eid] = datetime.utcnow()
                     updated_google_message_id_records[email_object.eid] = service_response.get('id')
+
+                    print("All updated records: ", updated_send_at_records)
+                    print("-"*50)
+                    print("All updated google message id records: ", updated_google_message_id_records)
 
                 else:
                     #this is a new email directly from redis
@@ -86,8 +115,10 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
         redis_pipeline.expire(redis_queue_key, 90 * 60)
         redis_pipeline.expire(redis_failed_queue_key, 90 * 60)
-
         redis_pipeline.execute()
+
+        if resume_path_on_disk and resume_path_on_disk != "download_failed" and os.path.exists(resume_path_on_disk):
+            os.remove(resume_path_on_disk)
 
         if new_db_records:
             db_connection.bulk_save_objects(new_db_records)

@@ -73,7 +73,7 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
         if email_object.bcc_email:
             message["Bcc"] = email_object.bcc_email
 
-        if os.path.exists(file_attachment_location):
+        if file_attachment_location is not None and os.path.exists(file_attachment_location):
             with open(file_attachment_location, "rb") as attachment_file:
                 attachment_file_bytes = attachment_file.read()
 

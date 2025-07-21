@@ -18,5 +18,6 @@ class Email(Base):
     cc_email = Column(String, nullable=True)
     bcc_email = Column(String, nullable=True)
     send_at = Column(DateTime, nullable=False)
+    include_resume = Column(Boolean, default=False)
 
     user = relationship('User', back_populates='emails')
