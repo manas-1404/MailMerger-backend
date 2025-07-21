@@ -1,7 +1,7 @@
 import os.path
 from email.contentmanager import maintype
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -17,6 +17,7 @@ from app.db.dbConnection import get_db_session
 from app.models import User, UserToken, Email
 from app.pydantic_schemas.email_pydantic import EmailSchema
 from app.pydantic_schemas.response_pydantic import ResponseSchema
+from app.services.storage_service import get_file_from_storage
 from app.utils.config import settings
 
 
@@ -136,6 +137,7 @@ def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: S
 
     gmail_access_token = user_token.access_token
 
+    #the access token is expired, we need to refresh it
     if user_token.expires_at < datetime.utcnow():
         gmail_access_token, gmail_access_token_expiry = refresh_google_access_token(user_token)
 
@@ -144,13 +146,38 @@ def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: S
 
         db_connection.flush()
 
+    resume_path_on_disk = None
+
+    #user wants to include resume also in the email
+    if email_object.include_resume:
+
+        #checking if the user has a resume on file
+        if not user.resume:
+            raise HTTPException(
+                status_code=400,
+                detail="User does not have a resume uploaded."
+            )
+
+        resume_path_on_disk = get_file_from_storage(object_url=user.resume)
+
+        if resume_path_on_disk == "download_failed":
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve resume from cloud storage."
+            )
+
     sent_message = gmail_send_message(
         google_access_token=gmail_access_token,
         from_email=user.email,
         email_object=email_object,
         user_token=user_token,
-        db_connection=db_connection
+        db_connection=db_connection,
+        file_attachment_location=resume_path_on_disk
     )
+
+    #remove the file from the disk once the email is sent
+    if email_object.include_resume and resume_path_on_disk != "download_failed" and os.path.exists(resume_path_on_disk):
+        os.remove(resume_path_on_disk)
 
     if sent_message:
 

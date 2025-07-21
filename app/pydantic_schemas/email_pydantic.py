@@ -13,3 +13,4 @@ class EmailSchema(BaseModel):
     cc_email: Optional[str] = None
     bcc_email: Optional[str] = None
     send_at: Optional[datetime] = None
+    include_resume: Optional[bool] = False
