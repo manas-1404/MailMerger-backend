@@ -83,7 +83,7 @@ def refresh_jwt_token(request: Request):
 
 
 @auth_router.get("/renew-refresh-and-jwt-token")
-def refresh_jwt_token(request: Request, db_connection: Session = Depends(get_db_session)):
+def renew_refresh_and_jwt_token(request: Request, db_connection: Session = Depends(get_db_session)):
     """
     Endpoint to refresh the JWT token.
     This endpoint should be called when the JWT token is about to expire.
