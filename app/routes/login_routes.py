@@ -10,8 +10,9 @@ from app.db.redisConnection import get_redis_connection
 from app.models import User, Template
 from app.pydantic_schemas.login_pydantic import LoginSchema
 from app.pydantic_schemas.response_pydantic import ResponseSchema
+from app.pydantic_schemas.signup_pydantic import SignUpSchema
 from app.pydantic_schemas.template_pydantic import TemplateSchema
-from app.utils.utils import verify_string, serialize_for_redis
+from app.utils.utils import verify_string, serialize_for_redis, encrypt_string
 
 login_router = APIRouter(
     prefix="/api/auth",
@@ -68,3 +69,36 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
     )
 
     return json_response
+
+@login_router.post("/signup")
+def sign_up(signup_data: SignUpSchema, db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+    """
+    Endpoint to sign up a new user.
+    """
+    existing_user = db_connection.query(User).filter(User.email == signup_data.email.lower()).first()
+
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    new_user = User(
+        name=signup_data.name,
+        email=signup_data.email,
+        password=encrypt_string(plain_string=signup_data.password),
+    )
+
+    db_connection.add(new_user)
+    db_connection.flush()
+
+    jwt_token = create_jwt_token(data=new_user.uid)
+    refresh_token = create_jwt_refresh_token(data=new_user.uid)
+
+    new_user.jwt_refresh_token = refresh_token
+
+    db_connection.commit()
+
+    return ResponseSchema(
+        success=True,
+        status_code=201,
+        message="User registered successfully",
+        data={"jwt_token": jwt_token, "refresh_token": refresh_token}
+    )
