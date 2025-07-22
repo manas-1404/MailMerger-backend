@@ -24,7 +24,7 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
 
     user = (db_connection.query(User).options(joinedload(User.templates)).filter(User.email == login_data.email).first())
 
-    #user is present in the db
+    #user is not present in the db
     if user is None or not verify_string(plain_string=login_data.password, hashed_string=user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
@@ -33,7 +33,7 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
 
     user_refresh_token = create_jwt_refresh_token(data=user.uid)
 
-    db_connection.query(User).filter(User.uid == user.uid).update({User.refresh_token: user_refresh_token})
+    user.jwt_refresh_token = user_refresh_token
 
     db_connection.commit()
 
@@ -45,6 +45,7 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
         template_data = TemplateSchema.model_validate(template).model_dump()
         redis_pipeline.hset(redis_template_key, template.template_id, serialize_for_redis(template_data))
 
+    redis_pipeline.hset("user_name", user.uid, user.name)
     redis_pipeline.expire(redis_template_key, 60 * 90)
     redis_pipeline.execute()
 
@@ -55,6 +56,7 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
             message="Login successful!",
             data={
                 "jwt_token": user_jwt_token,
+                "user_name": user.name,
             }
         ).model_dump()
     )
