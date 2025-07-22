@@ -16,7 +16,7 @@ storage_router = APIRouter(
 )
 
 @storage_router.post("/upload-file")
-def upload_file(file: UploadFile = File(...), jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session)):
+def upload_file(uploaded_file: UploadFile = File(...), filecontent: str = "resume", jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session)):
     """
     Endpoint to upload a file to the storage service.
     """
@@ -32,7 +32,7 @@ def upload_file(file: UploadFile = File(...), jwt_payload: dict = Depends(authen
             data={}
         )
 
-    if file.content_type != "application/pdf":
+    if uploaded_file.content_type != "application/pdf":
         return ResponseSchema(
             success=False,
             status_code=400,
@@ -40,7 +40,7 @@ def upload_file(file: UploadFile = File(...), jwt_payload: dict = Depends(authen
             data={}
         )
 
-    file_bytes = file.file.read()
+    file_bytes = uploaded_file.file.read()
 
     if len(file_bytes) > 5*1024*1024:
         return ResponseSchema(
