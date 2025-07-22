@@ -1,6 +1,7 @@
 import os.path
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -131,7 +132,7 @@ def send_gmail_service(email_object: EmailSchema, user_id: str, db_connection: S
             success=False,
             status_code=401,
             message="Gmail not authorized.",
-            data={"redirect_url": "http://localhost:8000/api/oauth/gmail-authorize"}
+            data={"redirect_url": "http://localhost:8000/api/oauth/gmail-authorize?purpose=authorize"}
         )
 
     gmail_access_token = user_token.access_token
