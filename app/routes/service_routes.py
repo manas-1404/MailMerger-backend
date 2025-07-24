@@ -62,7 +62,7 @@ def gmail_send_message(email_object: EmailSchema, google_access_token: str, from
         service = build("gmail", "v1", credentials=user_credentials)
         message = EmailMessage()
 
-        message.set_content(email_object.body)
+        message.set_content(email_object.body, subtype="html", charset="utf-8")
 
         message["To"] = email_object.to_email
         message["From"] = from_email
