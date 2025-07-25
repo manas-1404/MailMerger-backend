@@ -16,6 +16,7 @@ MailMerger-backend is a robust and scalable backend API designed for managing pe
   - [Email Queue](#email-queue)
   - [Templates](#templates)
   - [Storage](#storage)
+- [Frontend Repository](#frontend-repository)
 - [Background Tasks](#background-tasks)
 - [Development & Testing](#development--testing)
 - [Contribution](#contribution)
@@ -166,6 +167,13 @@ See `app/utils/config.py` for the full list.
 - **Celery** is used for sending emails in the background.
 - When a user requests to send queued emails, `send_emails_from_user_queue` Celery task is triggered.
 - Ensure that the Celery worker is running and configured to connect to the same Redis instance as the server.
+
+---
+
+## Frontend Repository
+
+The frontend code for this project is available at:  [@manas-1404/MailMerger-frontend](https://github.com/manas-1404/MailMerger-frontend)
+Please refer to the frontend repository for setup instructions and all client-side logic.
 
 ---
 
