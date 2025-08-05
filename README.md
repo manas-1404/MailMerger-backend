@@ -43,7 +43,10 @@ MailMerger-backend is a robust and scalable backend API designed for managing pe
 
 These screenshots from the frontend demonstrate features powered by the backend APIs.
 
+### Email page:
 ![Write Email Demo](./assets/email_merge.png)
+
+### Create new template page:
 ![Create Template Demo](./assets/template.png)
 
 ---
