@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     REDIS_CLOUD_USERNAME: str
     REDIS_CLOUD_PASSWORD: str
 
+    RATE_LIMIT_PER_SECOND: int
+    RATE_LIMIT_CAPACITY: int
+    RATE_LIMIT_IDLE_TTL: int
+    RATE_DEFAULT_COST: int
+    RATE_HEAVY_COST: int
+    RATE_HEAVY_PREFIXES: str = ""
+    RATE_SKIP_PATHS: str = ""
+
     class Config:
         env_file = ".env"
 
