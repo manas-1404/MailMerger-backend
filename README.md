@@ -7,6 +7,7 @@ MailMerger-backend is a robust and scalable backend API designed for managing pe
 ## Table of Contents
 
 - [Features](#features)
+- [Demo](#demo)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Setup and Installation](#setup-and-installation)
@@ -35,6 +36,18 @@ MailMerger-backend is a robust and scalable backend API designed for managing pe
 - **Caching:** Heavy use of Redis for caching templates and email queues for fast access.
 - **Background Processing:** Celery tasks for sending emails in the background.
 - **Configurable CORS:** Supports cross-origin requests from configurable origins.
+
+---
+
+## Demo
+
+These screenshots from the frontend demonstrate features powered by the backend APIs.
+
+### Email page:
+![Write Email Demo](./assets/email_merge.png)
+
+### Create new template page:
+![Create Template Demo](./assets/template.png)
 
 ---
 
