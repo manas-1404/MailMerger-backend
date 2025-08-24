@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 import logging
@@ -18,7 +18,11 @@ from app.routes.template_routes import template_router
 from app.routes.user_routes import user_router
 from app.utils.config import settings
 
+from app.services.ratelimiting_services import RateLimitManager
 app = FastAPI()
+
+SKIP_PATHS: set[str] = {p.strip() for p in settings.RATE_SKIP_PATHS.split(",") if p.strip()}
+HEAVY_PATHS: set[str] = {p.strip() for p in settings.RATE_HEAVY_PATHS.split(",") if p.strip()}
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +34,20 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+ratelimiter = RateLimitManager(
+    rate_per_second=settings.RATE_LIMIT_PER_SECOND,
+    capacity=settings.RATE_LIMIT_CAPACITY,
+    idle_ttl=settings.RATE_LIMIT_IDLE_TTL,
+)
+
+def should_skip(request: Request) -> bool:
+    return request.url.path in SKIP_PATHS
+
+def route_cost(request: Request) -> float:
+    return settings.RATE_HEAVY_COST if request.url.path in HEAVY_PATHS else settings.RATE_DEFAULT_COST
+
+app.middleware("http")(ratelimiter.middleware(cost_getter=route_cost, skip=should_skip))
 
 app.include_router(oauth_router)
 app.include_router(auth_router)
