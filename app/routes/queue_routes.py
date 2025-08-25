@@ -5,8 +5,9 @@ from email.policy import default
 from typing import List
 
 from fastapi import APIRouter, Depends, Body
+from redis.asyncio.client import Pipeline
 from sqlalchemy.orm import Session
-import redis
+from redis.asyncio import Redis
 
 from app.models import User, Email
 from app.pydantic_schemas.email_pydantic import EmailSchema
@@ -23,9 +24,9 @@ queue_router = APIRouter(
 )
 
 @queue_router.get("/get-email-queue")
-def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
+async def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
                     db_connection: Session = Depends(get_db_session),
-                    redis_connection: redis.Redis = Depends(get_redis_connection)):
+                    redis_connection: Redis = Depends(get_redis_connection)):
     """
     Endpoint to get the email queue for the authenticated user.
     """
@@ -43,13 +44,13 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
         )
 
     redis_email_queue_key = f"email_queue:{user_id}"
-    email_queue = redis_connection.lrange(redis_email_queue_key, 0, -1)
+    email_queue = await redis_connection.lrange(redis_email_queue_key, 0, -1)
 
     if email_queue:
 
         emails = [json.loads(email) for email in email_queue]
 
-        redis_connection.expire(redis_email_queue_key, 90*60) #extend the expiry time of the email queue because it was recently used
+        await redis_connection.expire(redis_email_queue_key, 90*60) #extend the expiry time of the email queue because it was recently used
 
         return ResponseSchema(
             success=True,
@@ -72,10 +73,10 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
             if isinstance(email_dict.get("send_at"), datetime):
                 email_dict["send_at"] = email_dict["send_at"].isoformat()
 
-            redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
+            await redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
             email_list.append(email_dict)
 
-        redis_connection.expire(redis_email_queue_key, 90*60)
+        await redis_connection.expire(redis_email_queue_key, 90*60)
 
         return ResponseSchema(
             success=True,
@@ -86,9 +87,9 @@ def get_email_queue(jwt_payload: dict = Depends(authenticate_request),
 
 
 @queue_router.post("/add-to-queue")
-def add_to_queue(email: EmailSchema, jwt_payload: dict = Depends(authenticate_request),
+async def add_to_queue(email: EmailSchema, jwt_payload: dict = Depends(authenticate_request),
                  db_connection: Session = Depends(get_db_session),
-                 redis_connection: redis.Redis = Depends(get_redis_connection)):
+                 redis_connection: Redis = Depends(get_redis_connection)):
     """
     Endpoint to add an email to the processing queue.
     """
@@ -118,21 +119,21 @@ def add_to_queue(email: EmailSchema, jwt_payload: dict = Depends(authenticate_re
 
     email_dict["eid"] = new_email.eid
 
-    redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
-    redis_connection.expire(redis_email_queue_key, 90*60)
+    pushed_lenght = await redis_connection.rpush(redis_email_queue_key, json.dumps(email_dict))
+    await redis_connection.expire(redis_email_queue_key, 90*60)
 
     return ResponseSchema(
         success=True,
         status_code=200,
         message="Email added to the queue successfully.",
-        data={"queue_length": redis_connection.llen(redis_email_queue_key)}
+        data={"queue_length": pushed_lenght}
     )
 
 @queue_router.post("/send-queued-emails")
-def send_queued_emails(email_ids: List[int] = Body(...),
+async def send_queued_emails(email_ids: List[int] = Body(...),
                        jwt_payload: dict = Depends(authenticate_request),
                        db_connection: Session = Depends(get_db_session),
-                       redis_connection: redis.Redis = Depends(get_redis_connection)):
+                       redis_connection: Redis = Depends(get_redis_connection)):
     """
     Endpoint wrapper to send queued emails. We will call celery task to process the emails in the background.
     """
@@ -158,10 +159,10 @@ def send_queued_emails(email_ids: List[int] = Body(...),
     )
 
 @queue_router.delete("/delete-queue-email")
-def delete_queue_email(email_ids: List[int] = Body(...),
+async def delete_queue_email(email_ids: List[int] = Body(...),
                                    jwt_payload: dict = Depends(authenticate_request),
                                    db_connection: Session = Depends(get_db_session),
-                                   redis_connection: redis.Redis = Depends(get_redis_connection)):
+                                   redis_connection: Redis = Depends(get_redis_connection)):
     """
     Endpoint to delete emails from the queue.
     """
@@ -179,9 +180,9 @@ def delete_queue_email(email_ids: List[int] = Body(...),
 
     redis_email_queue_key: str = f"email_queue:{user_id}"
 
-    email_queue = redis_connection.lrange(redis_email_queue_key, 0, -1)
+    email_queue = await redis_connection.lrange(redis_email_queue_key, 0, -1)
 
-    redis_pipeline = redis_connection.pipeline()
+    redis_pipeline: Pipeline = redis_connection.pipeline()
     redis_pipeline.delete(redis_email_queue_key)
     remaining_queue_length = 0
 
@@ -197,7 +198,7 @@ def delete_queue_email(email_ids: List[int] = Body(...),
     db_connection.commit()
 
     redis_pipeline.expire(redis_email_queue_key, 90*60)
-    redis_pipeline.execute()
+    await redis_pipeline.execute()
 
     return ResponseSchema(
         success=True,
