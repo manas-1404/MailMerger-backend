@@ -20,7 +20,7 @@ login_router = APIRouter(
 )
 
 @login_router.post("/login")
-def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+async def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
 
     user = (db_connection.query(User).options(joinedload(User.templates)).filter(User.email == login_data.email).first())
 
@@ -43,10 +43,10 @@ def login(login_data: LoginSchema, db_connection: Session = Depends(get_db_sessi
 
     for template in user.templates:
         template_data = TemplateSchema.model_validate(template).model_dump()
-        redis_pipeline.hset(redis_template_key, template.template_id, serialize_for_redis(template_data))
+        await redis_pipeline.hset(redis_template_key, template.template_id, serialize_for_redis(template_data))
 
-    redis_pipeline.hset("user_name", user.uid, user.name)
-    redis_pipeline.expire(redis_template_key, 60 * 90)
+    await redis_pipeline.hset("user_name", user.uid, user.name)
+    await redis_pipeline.expire(redis_template_key, 60 * 90)
     redis_pipeline.execute()
 
     json_response = JSONResponse(
