@@ -3,6 +3,7 @@ import os.path
 from datetime import datetime
 from typing import List
 
+from redis.asyncio.client import Pipeline
 from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 
@@ -16,7 +17,7 @@ from app.services.storage_service import get_file_from_storage
 
 
 @celery_app.task(name="send_emails_from_user_queue")
-def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
+async def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
     """
     Celery task to send emails from the user's queue.
     This function will be called by the Celery worker.
@@ -24,7 +25,8 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
     db_gen = get_db_session()
     db_connection = next(db_gen)
-    redis_connection = next(get_redis_connection())
+
+    redis_connection = await get_redis_connection()
 
     redis_queue_key = f"email_queue:{user_id}"
     redis_failed_queue_key = f"failed_email_queue:{user_id}"
@@ -37,9 +39,9 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
         user = db_connection.query(User).options(joinedload(User.user_tokens)).filter(User.uid == user_id).first()
 
-        email_queue = redis_connection.lrange(redis_queue_key, 0, -1)
+        email_queue = await redis_connection.lrange(redis_queue_key, 0, -1)
 
-        redis_pipeline = redis_connection.pipeline()
+        redis_pipeline: Pipeline = redis_connection.pipeline()
 
         redis_pipeline.delete(redis_queue_key)
 
@@ -115,7 +117,7 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
         redis_pipeline.expire(redis_queue_key, 90 * 60)
         redis_pipeline.expire(redis_failed_queue_key, 90 * 60)
-        redis_pipeline.execute()
+        await redis_pipeline.execute()
 
         if resume_path_on_disk and resume_path_on_disk != "download_failed" and os.path.exists(resume_path_on_disk):
             os.remove(resume_path_on_disk)
@@ -157,11 +159,11 @@ def send_emails_from_user_queue(user_id: str, email_ids: List[int]):
 
 
 @celery_app.task(name="retry_failed_emails")
-def retry_failed_emails(user_id: str):
+async def retry_failed_emails(user_id: str):
     db_gen = get_db_session()
     db = next(db_gen)
-    redis_gen = get_redis_connection()
-    redis = next(redis_gen)
+    redis_gen = await get_redis_connection()
+    redis = redis_gen
 
     failed_key = f"failed_email_queue:{user_id}"
     dead_key = f"dead_email_queue:{user_id}"
@@ -172,7 +174,7 @@ def retry_failed_emails(user_id: str):
             return
 
         while True:
-            email_json = redis.lpop(failed_key)
+            email_json = await redis.lpop(failed_key)
             if email_json is None:
                 break
 
@@ -208,12 +210,12 @@ def retry_failed_emails(user_id: str):
                 email_data["retry_count"] = retry_count
 
                 if retry_count > 3:
-                    redis.rpush(dead_key, json.dumps(email_data))
+                    await redis.rpush(dead_key, json.dumps(email_data))
                 else:
-                    redis.rpush(failed_key, json.dumps(email_data))
+                    await redis.rpush(failed_key, json.dumps(email_data))
 
         db.commit()
 
     finally:
         db_gen.close()
-        redis_gen.close()
+        await redis_gen.close()
