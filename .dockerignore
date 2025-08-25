@@ -1,0 +1,8 @@
+.venv
+.idea
+.vscode
+__pycache__
+*.pyc
+.env
+client_secret.json
+client_secret_old.json
