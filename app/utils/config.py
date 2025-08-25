@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DB_CONNECTION_URL: str
+    NEON_DB_CONNECTION_URL: str
     SUPABASE_ACCESS_KEY_ID: str
     SUPABASE_SERVICE_ROLE: str
     ALLOWED_ORIGINS: list[str] = []
@@ -19,6 +20,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_PROJECT_ID: str
 
+    REDIS_CLOUD_URL: str
+
     REDIS_CLOUD_HOST: str
     REDIS_CLOUD_PORT: int
     REDIS_CLOUD_USERNAME: str
@@ -29,7 +32,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_IDLE_TTL: int
     RATE_DEFAULT_COST: int
     RATE_HEAVY_COST: int
-    RATE_HEAVY_PREFIXES: str = ""
+    RATE_HEAVY_PATHS: str = ""
     RATE_SKIP_PATHS: str = ""
 
     class Config:

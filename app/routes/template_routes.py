@@ -19,7 +19,7 @@ template_router = APIRouter(
 )
 
 @template_router.get("/get-all-templates")
-def get_all_templates(jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+async def get_all_templates(jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
     """
     Endpoint to get all templates for the authenticated user.
     """
@@ -35,7 +35,7 @@ def get_all_templates(jwt_payload: dict = Depends(authenticate_request), db_conn
         )
 
     redis_template_key: str = f"user:{user_id}:templates"
-    redis_templates_cache = redis_connection.hgetall(redis_template_key)
+    redis_templates_cache = await redis_connection.hgetall(redis_template_key)
 
     if len(redis_templates_cache) > 0:
         return ResponseSchema(
@@ -52,10 +52,10 @@ def get_all_templates(jwt_payload: dict = Depends(authenticate_request), db_conn
 
     redis_pipeline = redis_connection.pipeline()
     for template in template_list:
-        redis_pipeline.hset(redis_template_key, template["template_id"], serialize_for_redis(template))
+        await redis_pipeline.hset(redis_template_key, template["template_id"], serialize_for_redis(template))
 
-    redis_pipeline.expire(redis_template_key, 60 * 90)
-    redis_pipeline.execute()
+    await redis_pipeline.expire(redis_template_key, 60 * 90)
+    await redis_pipeline.execute()
 
     return ResponseSchema(
         status_code=200,
@@ -66,7 +66,7 @@ def get_all_templates(jwt_payload: dict = Depends(authenticate_request), db_conn
 
 
 @template_router.post("/add-template")
-def add_template(template_data: TemplateSchema, jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+async def add_template(template_data: TemplateSchema, jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
     """
     Endpoint to add a new template for the authenticated user.
     """
@@ -83,8 +83,8 @@ def add_template(template_data: TemplateSchema, jwt_payload: dict = Depends(auth
 
     redis_template_key: str = f"user:{user_id}:templates"
     redis_template_value: str = serialize_for_redis(new_template)
-    redis_connection.hset(redis_template_key, str(new_template.template_id), redis_template_value)
-    redis_connection.expire(redis_template_key, 60 * 90)
+    await redis_connection.hset(redis_template_key, str(new_template.template_id), redis_template_value)
+    await redis_connection.expire(redis_template_key, 60 * 90)
 
     return ResponseSchema(
         status_code=201,
@@ -94,7 +94,7 @@ def add_template(template_data: TemplateSchema, jwt_payload: dict = Depends(auth
     )
 
 @template_router.patch("/update-template")
-def update_template(template_data: TemplateSchema, jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+async def update_template(template_data: TemplateSchema, jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
     """
     Endpoint to update a template for the authenticated user.
     """
@@ -123,8 +123,8 @@ def update_template(template_data: TemplateSchema, jwt_payload: dict = Depends(a
          "t_body": update_template.t_body,
          "t_key": update_template.t_key}
     )
-    redis_connection.hset(redis_template_key, str(update_template.template_id), redis_template_value)
-    redis_connection.expire(redis_template_key, 60 * 90)
+    await redis_connection.hset(redis_template_key, str(update_template.template_id), redis_template_value)
+    await redis_connection.expire(redis_template_key, 60 * 90)
 
     return ResponseSchema(
         status_code=200,
@@ -134,7 +134,7 @@ def update_template(template_data: TemplateSchema, jwt_payload: dict = Depends(a
     )
 
 @template_router.delete("/delete-template")
-def delete_template(template_ids: List[int] = Body(...), jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
+async def delete_template(template_ids: List[int] = Body(...), jwt_payload: dict = Depends(authenticate_request), db_connection: Session = Depends(get_db_session), redis_connection: redis.Redis = Depends(get_redis_connection)):
     """
     Endpoint to delete a template for the authenticated user.
     """
@@ -161,10 +161,10 @@ def delete_template(template_ids: List[int] = Body(...), jwt_payload: dict = Dep
     db_connection.commit()
 
     #map the template ids and delete them from redis. map() converts the template_ids to strings. * basically unpacks all the template_ids
-    redis_pipeline.hdel(redis_template_key, *map(str, template_ids))
+    await redis_pipeline.hdel(redis_template_key, *map(str, template_ids))
 
-    redis_pipeline.expire(redis_template_key, 60 * 90)
-    redis_pipeline.execute()
+    await redis_pipeline.expire(redis_template_key, 60 * 90)
+    await redis_pipeline.execute()
 
     return ResponseSchema(
         status_code=200,
